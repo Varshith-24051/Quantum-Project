@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q-TERMINAL · Quantum Portfolio Optimization</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo"><span class="q">Q-TERMINAL</span> <span class="t">// QUANT PORTFOLIO</span><span class="sub">BLOOMBERG-STYLE · CLASSROOM-READABLE</span></div>
+  <span class="pill live">MKT · <span id="srcPill">MOCK FEED</span></span>
+  <span class="pill qiskit" id="backendPill">BACKEND · …</span>
+  <span class="pill" id="hwPill" style="display:none">HW · …</span>
+  <button class="hbtn" id="tourBtn">GUIDED TOUR</button>
+  <button class="hbtn" id="dossierBtn">DOSSIER</button>
+  <button class="hbtn" id="qpuBtn">QPU</button>
+  <span class="clock" id="clock">--:--:--</span>
+</header>
+<div class="tape"><div class="tape-inner" id="tape">LOADING FEED …</div></div>
+
+<div class="exec-banner pending" id="execBanner">
+  <span class="tag">EXEC SUMMARY — PLAIN ENGLISH</span>
+  <span id="execText">Welcome. Pick stocks on the left, choose a solver, press <b>RUN OPTIMIZATION</b>. Results stream live over WebSocket. Every outcome is explained here in one quotable sentence.</span>
+</div>
+
+<div class="layout">
+  <!-- ============ LEFT SIDEBAR ============ -->
+  <aside id="sidebar">
+    <div class="panel" data-pid="universe">
+      <h2><span class="sq">■</span>1 · Asset Universe <span class="tip" title="Tick stocks the optimizer may hold. LAST/CHG is a live mock feed. BETA = market sensitivity. VOL = yearly swing."> [?]</span><span class="x" data-collapse title="collapse">–</span></h2>
+      <div class="pbody">
+      <p class="explain">Tick allowed stocks. Optimizer must hold exactly <b>K</b> of them.</p>
+      <div class="ctl"><label>Data source</label>
+        <select id="srcSel"><option value="mock">MOCK PRESET (offline)</option><option value="yahoo">YAHOO FINANCE (live)</option><option value="upload">UPLOAD CSV</option></select></div>
+      <div id="yahooBox" style="display:none">
+        <div class="ctl"><label>Yahoo tickers (comma separated)</label>
+          <input type="text" id="yahooTick" value="AAPL,MSFT,NVDA,GOOGL,JPM,XOM,TSLA,LLY" style="width:100%;background:#000;color:var(--txt);border:1px solid var(--line2);padding:7px;font-family:var(--mono);font-size:12px"></div>
+        <div class="ctl"><label>Period</label>
+          <select id="yahooPeriod"><option>1y</option><option selected>3y</option><option>5y</option></select></div>
+        <button class="btn dim" id="fetchBtn">FETCH LIVE DATA</button>
+      </div>
+      <div id="uploadBox" style="display:none">
+        <div class="ctl"><label>CSV: date col + ticker close cols (60+ rows)</label>
+          <input type="file" id="csvFile" accept=".csv"></div>
+      </div>
+      <table class="atable"><thead><tr><th></th><th>TICKER</th><th class="n">LAST</th><th class="n">CHG%</th><th class="n">BETA</th><th class="n">VOL</th></tr></thead>
+      <tbody id="assetBody"></tbody></table>
+      <div class="chips" id="selChips"></div>
+      </div>
+    </div>
+
+    <div class="panel" data-pid="constraints">
+      <h2><span class="sq">■</span>2 · Constraints &amp; Backtest<span class="x" data-collapse title="collapse">–</span></h2>
+      <div class="pbody">
+      <p class="explain">Holdings count (<b>K</b>), risk fear (<b>q</b>), and how history is replayed.</p>
+      <div class="ctl"><label>Budget / Cardinality K <b id="kVal">4</b></label>
+        <input type="range" id="kSlider" min="2" max="7" step="1" value="4"></div>
+      <div class="ctl"><label>Risk aversion q <b id="qVal">0.50</b></label>
+        <input type="range" id="qSlider" min="0.1" max="2" step="0.05" value="0.5"></div>
+      <div class="ctl"><label>Backtest mode</label>
+        <select id="rbSel"><option value="buy_hold">BUY + HOLD (3y)</option><option value="monthly">WALK-FWD (rebal monthly)</option></select></div>
+      </div>
+    </div>
+
+    <div class="panel" data-pid="config">
+      <h2><span class="sq">■</span>3 · Solver Config<span class="x" data-collapse title="collapse">–</span></h2>
+      <div class="pbody">
+      <p class="explain">Pick the solver. <b class="tip" title="QAOA tries portfolios in superposition. VQE tunes a flexible circuit. Q-ANNEAL cools into the answer. S-ANNEAL is its classical cousin. CLASSICAL checks every combo."> [?]</b></p>
+      <div class="algo-grid" id="algoGrid">
+        <div class="algo sel" data-algo="qaoa"><b style="color:var(--cyan)">QAOA</b><small>gate-based superposition</small></div>
+        <div class="algo" data-algo="vqe"><b style="color:var(--purple)">VQE</b><small>EfficientSU2 ground state</small></div>
+        <div class="algo" data-algo="quantum_annealing"><b style="color:var(--purple)">Q-ANNEAL</b><small>adiabatic proxy</small></div>
+        <div class="algo" data-algo="annealing"><b style="color:var(--amber)">S-ANNEAL</b><small>thermal baseline</small></div>
+        <div class="algo" data-algo="classical"><b style="color:var(--red)">CLASSICAL</b><small>exact MIQP 2^N</small></div>
+      </div>
+      <div class="ctl"><label>Circuit depth p <b id="pVal">2</b></label>
+        <input type="range" id="pSlider" min="1" max="4" step="1" value="2"></div>
+      <div class="ctl"><label>Measurement shots <b id="sVal">2048</b></label>
+        <select id="shotsSel"><option>1024</option><option selected>2048</option><option>4096</option></select></div>
+      <div class="ctl"><label>Mixer (QAOA)</label>
+        <select id="mixSel"><option value="standard">X-MIXER + penalty</option><option value="xy">XY-RING + Dicke (100% feasible)</option></select></div>
+      <div class="ctl"><label>Objective</label>
+        <select id="cvarSel"><option value="1">EXPECTATION &lt;H&gt;</option><option value="0.5">CVaR α=0.50 (tail)</option><option value="0.25">CVaR α=0.25 (tail)</option><option value="0.1">CVaR α=0.10 (tail)</option></select></div>
+      <div class="ctl"><label>Hardware noise</label>
+        <select id="noiseSel"><option value="ideal">IDEAL STATEVECTOR</option><option value="eagle">NISQ EAGLE EMULATION</option></select></div>
+      <div class="ctl"><label><span>ZNE error mitigation (QAOA)</span><input type="checkbox" id="zneChk" style="accent-color:var(--amber)"></label></div>
+      <div class="ctl"><label>Classical optimizer</label>
+        <select id="optSel"><option>COBYLA</option><option>SPSA</option></select></div>
+      <button class="btn" id="runBtn">RUN OPTIMIZATION ▸</button>
+      <button class="btn ghost" id="cmpBtn">COMPARE ALL SOLVERS</button>
+      <div class="prog"><div id="progBar"></div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main id="mainCol">
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="setup">1 SETUP·RISK</div>
+      <div class="tab" data-tab="lab">2 CIRCUIT·LIVE</div>
+      <div class="tab" data-tab="exec">3 ENERGY·SHOTS</div>
+      <div class="tab" data-tab="results">4 RESULTS·BACKTEST</div>
+      <div class="tab" data-tab="math">5 MATH·QUBO</div>
+    </div>
+
+    <section class="tabview active" id="v-setup">
+      <div class="grid2">
+        <div class="panel" data-pid="heat"><h2><span class="sq">■</span>Covariance heatmap <span class="tip" title="RED = move together (bad diversification). CYAN = move apart (good).">[?]</span><span class="x" data-collapse>–</span></h2>
+          <div class="pbody"><p class="explain">Optimizer avoids pairing <b>highly correlated</b> stocks.</p>
+          <canvas class="chart" id="heatChart"></canvas></div></div>
+        <div class="panel" data-pid="uni"><h2><span class="sq">■</span>Universe risk / return<span class="x" data-collapse>–</span></h2>
+          <div class="pbody"><p class="explain">Dot = stock. Up = more return, right = more risk. Size = beta.</p>
+          <canvas class="chart" id="uniChart"></canvas></div></div>
+      </div>
+      <div class="panel" data-pid="basket"><h2><span class="sq">■</span>Selected basket<span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain" id="basketExplain">—</p><div class="holdings" id="basketHold"></div></div></div>
+    </section>
+
+    <section class="tabview" id="v-lab">
+      <div class="panel" data-pid="circuit"><h2><span class="sq">■</span>Live circuit / solver schematic<span class="x" data-collapse>–</span></h2>
+        <div class="pbody">
+        <p class="explain" id="circuitExplain">Press RUN. Gate solvers draw wire-by-wire; annealers and classical draw their flow. Scrolls if wide.</p>
+        <div class="btnrow" style="max-width:460px"><button class="btn dim" id="expandBtn">EXPAND COMPILATION: RZZ → CNOT–RZ–CNOT</button></div>
+        <div id="routeHUD" style="font-size:11.5px;color:var(--mut);margin:6px 0"></div>
+        <div class="circuit-wrap"><svg id="circuitSvg"></svg></div>
+        <div class="log" id="labLog"><div><span class="t">[ready]</span> circuit canvas armed.</div></div>
+        </div></div>
+      <div class="panel" data-pid="noise"><h2><span class="sq">■</span>NISQ hardware report<span class="x" data-collapse>–</span></h2>
+        <div class="pbody">
+        <p class="explain">Ideal statevector vs Eagle-emulated execution (depolarizing + T1/T2 + readout). ZNE extrapolates folds λ=1,3,5 back to zero noise.</p>
+        <div id="noiseBody" style="font-size:12px;color:var(--mut)">Enable NISQ EAGLE EMULATION in Solver Config, then RUN.</div>
+        <canvas class="chart" id="zneChart" style="height:260px;margin-top:8px;display:none"></canvas>
+        </div></div>
+      <div class="panel" data-pid="quant"><h2><span class="sq">■</span>Algorithm quantum signature <span class="tip" title="One panel, different physics per solver: approximation ratios, leakage, entanglement, landscapes, annealing gaps. All numbers share one energy scale.">[?]</span><span class="x" data-collapse>–</span></h2>
+        <div class="pbody">
+        <div id="sigBody" style="font-size:12px;color:var(--mut)">RUN a solver — its quantum-mechanical fingerprint appears here.</div>
+        <canvas class="chart" id="sigCanvas" style="height:250px;margin-top:8px;display:none"></canvas>
+        <div id="weightBars" style="margin-top:8px"></div>
+        </div></div>
+    </section>
+
+    <section class="tabview" id="v-exec">
+      <div class="panel" data-pid="conv"><h2><span class="sq">■</span>Energy convergence (live)<span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain">Quantum energy (cyan) learns live over WebSocket. Flat <b style="color:var(--red)">red</b> = classical target.</p>
+        <canvas class="chart tall" id="convChart"></canvas>
+        <div class="legend"><span><i class="sw q"></i>quantum energy</span><span><i class="sw c"></i>classical exact</span></div></div></div>
+      <div class="panel" data-pid="hist"><h2><span class="sq">■</span>Measurement histogram<span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain" id="histExplain">Emerald = K-ok (feasible) · red = off-K (penalized). Amber frame = BEST valid. White ticks = exact probability.</p>
+        <canvas class="chart" id="histChart"></canvas></div></div>
+      <div class="panel" data-pid="stategrid"><h2><span class="sq">■</span>Quantum state density grid <span class="tip" title="Brightness = probability, hue = quantum phase. Watch interference amplify the winner as the optimizer runs.">[?]</span><span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain">All 2<sup>N</sup> basis states. Bright = high amplitude. Cyan/green tint = feasible K-weight states.</p>
+        <div id="stateGrid" class="sgrid"><span style="color:var(--dim)">Run the optimizer — amplitudes appear here.</span></div></div></div>
+      <div class="panel" data-pid="bloch"><h2><span class="sq">■</span>Bloch projection — single asset qubit <span class="tip" title="Reduced density matrix of one asset: arrow = Bloch vector. Short arrow = entangled with the rest (mixed). Surface = separable.">[?]</span><span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain">Ranked held-first. ✓ = marginal agrees with decoded BEST. Trails trace equator → final across iterations.</p>
+        <div id="blochGrid" class="bgrid"></div>
+        <canvas class="chart" id="blochCanvas" style="height:250px;margin-top:8px"></canvas>
+        <div id="blochRead" style="font-size:12px;color:var(--mut);margin-top:6px">—</div></div></div>
+    </section>
+
+    <section class="tabview" id="v-results">
+      <div class="panel" data-pid="hud"><h2><span class="sq">■</span>Metrics HUD<span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain">Headline numbers for your report. <span id="rbNote"></span></p>
+        <div class="hud">
+          <div class="card"><div class="k">ANN. RETURN</div><div class="v q" id="mRet">—</div><div class="s" id="mRetS">vs S&P —</div></div>
+          <div class="card"><div class="k">SHARPE</div><div class="v q" id="mSharpe">—</div><div class="s" id="mSharpeS">risk-adjusted</div></div>
+          <div class="card"><div class="k">SORTINO</div><div class="v q" id="mSort">—</div><div class="s">downside-only risk</div></div>
+          <div class="card"><div class="k">MAX DRAWDOWN</div><div class="v c" id="mDD">—</div><div class="s" id="mDDS">worst peak-trough</div></div>
+        </div>
+        <div class="holdings" id="holdCards"></div>
+        <div class="btnrow"><button class="btn dim" id="csvBtn">EXPORT CSV</button><button class="btn dim" id="jsonBtn">EXPORT JSON</button></div>
+        </div></div>
+      <div class="grid2">
+        <div class="panel" data-pid="front"><h2><span class="sq">■</span>Efficient frontier<span class="x" data-collapse>–</span></h2>
+          <div class="pbody"><p class="explain">Grey = valid K-portfolios. <b style="color:var(--cyan)">Cyan +</b> = quantum pick. Up-left wins.</p>
+          <canvas class="chart tall" id="frontChart"></canvas>
+          <div class="legend"><span><i class="sw s"></i>valid K-portfolios</span><span><i class="sw q"></i>+ quantum pick</span></div></div></div>
+        <div class="panel" data-pid="bt"><h2><span class="sq">■</span>3-year backtest<span class="x" data-collapse>–</span></h2>
+          <div class="pbody"><p class="explain" id="btExplain">What $100 becomes. Cyan = quantum, grey = S&P 500.</p>
+          <canvas class="chart tall" id="btChart"></canvas>
+          <div class="legend"><span><i class="sw q"></i>quantum portfolio</span><span><i class="sw s"></i>S&amp;P 500</span></div></div></div>
+      </div>
+      <div class="panel" data-pid="showdown"><h2><span class="sq">■</span>Solver showdown<span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain">All solvers, same math. Lowest energy wins; Sharpe tells you if it pays. (Capped budget: p≤3, single start — full runs may beat these.)</p>
+        <table class="ctable"><thead><tr><th>SOLVER</th><th>BITSTRING</th><th class="n">ENERGY</th><th class="n">SHARPE</th><th class="n">TIME</th></tr></thead>
+        <tbody id="cmpBody"><tr><td colspan="5" style="color:var(--dim)">Press COMPARE ALL SOLVERS.</td></tr></tbody></table>
+        <div id="h2h" style="margin-top:10px"></div></div></div>
+      <div class="panel" data-pid="history"><h2><span class="sq">■</span>Experiment log (persistent)<span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain">Every optimization is logged to SQLite. Compare runs across configs.</p>
+        <table class="ctable"><thead><tr><th>#</th><th>SOLVER</th><th class="n">NOISE</th><th class="n">CVaR</th><th>BITSTRING</th><th class="n">ENERGY</th><th class="n">SHARPE</th></tr></thead>
+        <tbody id="histBody"><tr><td colspan="7" style="color:var(--dim)">No runs logged yet.</td></tr></tbody></table>
+        <canvas class="chart" id="runsChart" style="height:190px;margin-top:8px"></canvas>
+        <div class="legend"><span><i class="sw q"></i>energy ↓ (left scale)</span><span><i class="sw a"></i>sharpe ↑ (right scale)</span></div>
+        <div class="btnrow"><button class="btn dim" id="histRefresh">REFRESH</button><button class="btn dim" id="histClear">CLEAR LOG</button></div></div></div>
+    </section>
+
+    <section class="tabview" id="v-math">
+      <div class="panel" data-pid="mathp"><h2><span class="sq">■</span>Show the math<span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain">Full pipeline with <b>your live numbers</b> after a run: Markowitz → QUBO → Pauli-Z Ising. Nodes sized by |h| (cyan = attractive, red = repulsive); edge width = |J| (solid = ferromagnetic J&gt;0, dashed = antiferromagnetic).</p>
+        <div class="btnrow" style="max-width:340px"><button class="btn dim" id="derivBtn">STEP-BY-STEP DERIVATION</button></div>
+        <div class="circuit-wrap" style="max-height:340px"><svg id="isingGraph"></svg></div>
+        <div class="math" id="mathBox">Run the optimizer once — QUBO matrix and Ising (h, J) appear here.</div></div></div>
+      <div class="panel" data-pid="slicer"><h2><span class="sq">■</span>Hilbert subspace slicer <span class="tip" title="Why XY needs no penalty: it never leaves the feasible ball. Standard QAOA spills probability outside and pays lambda for it.">[?]</span><span class="x" data-collapse>–</span></h2>
+        <div class="pbody"><p class="explain">Outer box = all 2<sup>N</sup> states. Inner ball = the C(N,K) feasible portfolios. Bar lengths = measured probability mass.</p>
+        <div id="sliceBox" style="font-size:12px;color:var(--mut)">RUN first — mass split appears here.</div></div></div>
+    </section>
+  </main>
+</div>
+
+<footer class="statusbar">
+  <span id="statusLine"><span class="ok">●</span> ready · mock feed · seed 42</span>
+  <span style="margin-left:auto" id="timingLine"></span>
+</footer>
+
+<!-- derivation modal -->
+<div class="overlay" id="derivModal" style="display:none"><div class="modal">
+  <h3>MARKOWITZ → QUBO → ISING <span class="x" data-close="derivModal">×</span></h3>
+  <div class="steps" id="derivSteps"></div>
+  <div class="math" id="derivBody"></div>
+  <div class="btnrow"><button class="btn dim" id="derivPrev">← PREV</button><button class="btn dim" id="derivNext">NEXT →</button></div>
+</div></div>
+
+<!-- QPU modal -->
+<div class="overlay" id="qpuModal" style="display:none"><div class="modal">
+  <h3>REAL QPU BACKEND <span class="x" data-close="qpuModal">×</span></h3>
+  <p class="explain">Real QPUs need an IBM Quantum account + <b>qiskit-ibm-runtime</b>. This terminal emulates Eagle noise locally until you connect. Token is only checked, never stored.</p>
+  <div class="ctl"><label>IBM Quantum API token (optional)</label>
+    <input type="password" id="qpuToken" placeholder="paste token to test" style="width:100%;background:#000;color:var(--txt);border:1px solid var(--line2);padding:7px;font-family:var(--mono)"></div>
+  <div class="btnrow"><button class="btn dim" id="qpuTest">TEST CONNECTION</button></div>
+  <div class="math" id="qpuOut">Not tested.</div>
+</div></div>
+
+<!-- guided tour overlay -->
+<div class="touroverlay" id="tourOverlay" style="display:none">
+  <div class="tourcard"><div class="ttag" id="tourTag">PHASE 1/5</div>
+    <h3 id="tourTitle"></h3><p id="tourText"></p>
+    <div class="btnrow"><button class="btn dim" id="tourBack">← BACK</button><button class="btn" id="tourNext">NEXT →</button></div>
+    <div style="text-align:right;margin-top:6px"><a href="#" id="tourSkip" style="color:var(--dim);font-size:11px">skip tour</a></div>
+  </div>
+</div>
+
+<!-- printable dossier -->
+<div class="overlay" id="dossierOverlay" style="display:none"><div class="modal wide">
+  <h3>FACULTY DOSSIER <span class="x" data-close="dossierOverlay">×</span></h3>
+  <div class="btnrow" style="max-width:340px"><button class="btn" id="printBtn">PRINT / SAVE PDF</button></div>
+  <div id="dossierBody" class="dossier"></div>
+</div></div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases & run history
+*.db
+*.sqlite
+*.sqlite3
+backend/runs.db
+
+# Scratch and temporary scripts
+tmp_probe.py
+tmp_*
+
+# Exclude all markdown documentation except the root README.md
+*.md
+!README.md
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Editor and OS metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
